@@ -1,0 +1,2 @@
+# fairydice
+Next.js Project
