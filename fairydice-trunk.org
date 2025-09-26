@@ -1,0 +1,1208 @@
+#+FILENAME: trunk.org
+#+PURPOSE: source control repo file
+#+TITLE: SPA File-Space Documentation
+#+AUTHOR: Project Fairydice
+#+DESCRIPTION: Structured outline of the Next.js SPA file-space with stubs for documentation.
+#+SEQ_TODO: TODO IN-PROGRESS BLOCKED | DONE
+#+FILETAGS: :spa:nextjs:docs:
+#+OPTIONS: toc:2 num:t
+#+BEGIN_SRC
+(defun fairydice-next-fill ()
+  (interactive)
+  (re-search-forward "\\[\\[FILL:\\([^]]*\\)\\]\\]" nil t))
+(defun fairydice-sort-headings-alpha ()
+  (interactive)
+  (org-sort-entries nil ?a))
+#+END_SRC
+* TODO ROOT
+:PROPERTIES:
+:ID: root-files
+:TAGS: :config:infra:
+:OWNER: core-team
+:END:
+** DONE .env.example
+:PROPERTIES:
+:ID: env-example
+:TAGS: :env:docker:config:
+:OWNER: devops
+:END:
+**Purpose**: Document required and optional environment variables for FairyDice.
+**Notes**: This file is **safe to commit** — it contains no secrets, only placeholders and guidance.
+
+#+BEGIN_SRC dotenv :tangle .env.example
+# ======================================================
+# FairyDice .env.example
+# ======================================================
+# Copy this file to `.env` or `.env.local` and fill in values.
+# DO NOT commit actual secrets (tokens, passwords) to git.
+# ======================================================
+
+# ------------------------
+# Core Next.js runtime
+# ------------------------
+
+# Node environment. Common values: development, production, test.
+NODE_ENV=development
+
+# Port the app runs on inside Docker (forwarded to host in compose).
+PORT=3000
+
+# Disable telemetry collection by Next.js (recommended for FOSS).
+NEXT_TELEMETRY_DISABLED=1
+
+# ------------------------
+# API / Auth / Security
+# ------------------------
+
+# Secret key used for signing cookies or JWTs.
+# In production, generate a strong random string.
+AUTH_SECRET=replace-me-with-random-hex
+
+# Allowed origins for CORS. Comma-separated list.
+# e.g., http://localhost:3000,http://127.0.0.1:3000
+CORS_ORIGIN=http://localhost:3000
+
+# Cookie settings. Use "Strict" or "Lax".
+COOKIE_SAMESITE=Strict
+
+# ------------------------
+# Analytics / Observability
+# ------------------------
+
+# Toggle custom analytics reporting (true/false).
+ENABLE_ANALYTICS=false
+
+# OpenTelemetry collector endpoint (if used).
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+
+# ------------------------
+# PlayCanvas integration
+# ------------------------
+
+# Public API key or project ID for PlayCanvas (not secret).
+PLAYCANVAS_PROJECT_ID=replace-me
+
+# ------------------------
+# Database (if/when added)
+# ------------------------
+
+# Example Postgres URL; replace with your actual DSN.
+DATABASE_URL=postgres://user:password@db:5432/fairydice
+
+# ------------------------
+# Misc / Developer Ergonomics
+# ------------------------
+
+# Enable polling for file watchers in Docker environments.
+# Required for hot reload on Mac/Windows (Docker Desktop).
+CHOKIDAR_USEPOLLING=true
+WATCHPACK_POLLING=true
+NEXT_WEBPACK_USEPOLLING=true
+
+# Verbose logging toggle (true/false).
+DEBUG=false
+
+# ======================================================
+# End of .env.example
+# ======================================================
+#+END_SRC
+
+** DONE docker-compose.override.yml
+:PROPERTIES:
+:ID: compose-override
+:TAGS: :docker:compose:dev:
+:OWNER: devops
+:END:
+**Purpose**: Local development override — hot reload, volumes, polling-friendly watchers.
+
+#+BEGIN_SRC yaml :tangle docker-compose.override.yml
+version: "3.9"
+
+services:
+  app:
+    # Reuse the same build context, but target the dev-friendly stage
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    # Mount the working tree into the container for hot reload
+    volumes:
+      - ./:/app
+      # Keep container-installed modules; don't shadow with host
+      - /app/node_modules
+      # Optional: persist Next cache for faster rebuilds between runs
+      - next-cache:/app/.next/cache
+    # Development command (binds on all interfaces)
+    command: ["pnpm", "dev", "-p", "3000", "--hostname", "0.0.0.0"]
+    # Friendlier logs during dev
+    environment:
+      NODE_ENV: "development"
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: "3000"
+      # Make file watching resilient across Docker Desktop/VM/WSL
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NEXT_WEBPACK_USEPOLLING: "true"
+    # Developer ergonomics
+    stdin_open: true
+    tty: true
+    # Healthcheck optional in dev (kept light)
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    ports:
+      - "3000:3000"
+
+volumes:
+  next-cache:
+#+END_SRC
+
+** DONE docker-compose.yml
+:PROPERTIES:
+:ID: compose
+:TAGS: :docker:compose:
+:OWNER: devops
+:END:
+**Purpose**: One-command run of the Next.js SPA in production-like mode.
+**Notes**: Uses the multi-stage image (final “runner” stage). Healthcheck points at /api/health.
+
+#+BEGIN_SRC yaml :tangle docker-compose.yml
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fairydice/app:latest
+    container_name: fairydice-app
+    # Network
+    ports:
+      - "3000:3000"
+    # Environment
+    environment:
+      NODE_ENV: "production"
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: "3000"
+    # Healthcheck mirrors Dockerfile but lets Compose manage restart policy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # Security: drop privs; Dockerfile already runs as non-root
+    user: "1001:1001"
+    # Read-only FS with explicit writable temp dirs (optional hardening)
+    # read_only: true
+    # tmpfs:
+    #   - /tmp
+    #   - /app/.next/cache
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+#+END_SRC
+
+** TODO instrumentation.client.ts
+:PROPERTIES:
+:ID: instr-client
+:TAGS: :monitoring:client:
+:OWNER: frontend
+:END:
+**Purpose**: Client-side telemetry/bootstrap.
+
+**Init Points**: [[FILL: e.g., register in layout.tsx]]
+**Events/Spans**: [[FILL]]
+**PII handling**: [[FILL]]
+
+** TODO instrumentation.ts
+:PROPERTIES:
+:ID: instr-server
+:TAGS: :monitoring:server:
+:OWNER: backend
+:END:
+**Purpose**: Next.js server instrumentation hooks.
+
+**Hooks Implemented**: [[FILL: onRequest, loggers, tracing]]
+**Exports/Side-effects**: [[FILL]]
+**Edge Cases**: [[FILL]]
+
+** DONE middleware.ts
+:PROPERTIES:
+:ID: next-middleware
+:TAGS: :nextjs:security:csp:auth:
+:OWNER: devops
+:END:
+**Purpose**: Edge-runtime middleware that
+- generates a per-request CSP nonce,
+- attaches strict security headers,
+- forwards the nonce to the app via `x-nonce`,
+- leaves room for future auth/feature-flag checks,
+- and avoids touching static assets/health endpoints for speed.
+
+#+BEGIN_SRC typescript :tangle middleware.ts
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
+/**
+ * Generate a cryptographically strong nonce in the Edge runtime.
+ * We avoid Node Buffer here; Edge provides crypto.getRandomValues.
+ */
+function nonce(): string {
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  // Base64 encode without Buffer:
+  // Turn bytes -> string, then btoa to base64.
+  let binary = "";
+  for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i]);
+  return btoa(binary);
+}
+
+/**
+ * Build a conservative CSP using our per-request nonce.
+ * Note: We still allow 'unsafe-inline' during early dev (can be removed later).
+ * Tighten as integrations (Discord, analytics, CDNs) are added.
+ */
+function buildCSP(n: string, extraConnect: string[] = []) {
+  const directives = [
+    "default-src 'self'",
+    // Allow inline/nonce scripts during bootstrap; prefer migrating to nonce-only.
+    `script-src 'self' 'nonce-${n}' 'unsafe-inline' 'unsafe-eval'`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    ["connect-src 'self'", ...extraConnect].join(" "),
+    "font-src 'self' data:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ];
+  return directives.join("; ");
+}
+
+/**
+ * Small helper: should we skip middleware work for this path?
+ * We bypass _next assets, static files, favicon, and health checks.
+ */
+function isBypassedPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/static/") ||
+    pathname === "/favicon.ico" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    pathname === "/api/health"
+  );
+}
+
+export function middleware(req: NextRequest) {
+  const { nextUrl } = req;
+  const path = nextUrl.pathname;
+
+  if (isBypassedPath(path)) {
+    return NextResponse.next();
+  }
+
+  // Generate per-request nonce
+  const n = nonce();
+
+  // Prepare response and propagate request headers if needed later
+  const res = NextResponse.next();
+
+  // Security headers (align with next.config.mjs where possible)
+  const corsOrigins =
+    (req.headers.get("x-cors-origin-override") ??
+      process.env.CORS_ORIGIN ??
+      "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const csp = buildCSP(n, corsOrigins);
+
+  res.headers.set("Content-Security-Policy", csp);
+  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.headers.set("X-Content-Type-Options", "nosniff");
+  res.headers.set("X-Frame-Options", "DENY");
+  res.headers.set("X-XSS-Protection", "1; mode=block");
+
+  // Pass nonce to the app for inline <script> tags in _document.tsx
+  // Example usage in _document: <script nonce={nonce} dangerouslySetInnerHTML={{__html: "..."}}
+  res.headers.set("x-nonce", n);
+
+  // Attach a request id if not present (useful in logs)
+  if (!req.headers.get("x-request-id")) {
+    res.headers.set("x-request-id", crypto.randomUUID());
+  }
+
+  // --- Future hook: lightweight auth gating / feature flags ---
+  // const isAuthed = Boolean(req.cookies.get("auth")?.value);
+  // if (!isAuthed && path.startsWith("/user")) {
+  //   return NextResponse.redirect(new URL("/guest", req.url));
+  // }
+
+  return res;
+}
+
+/**
+ * Only run middleware for "application paths":
+ * - Skip static assets, _next, favicon, health, etc.
+ */
+export const config = {
+  matcher: [
+    // Everything except the excluded patterns
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|api/health|static).*)",
+  ],
+};
+#+END_SRC
+
+*** Integration notes
+- The nonce is exposed via the `x-nonce` response header. In your custom `_document.tsx`, read it from `ctx.res.getHeader("x-nonce")` (Node runtime) or inject via a prop from `Document.getInitialProps`. If you’re using the App Router with streaming, prefer passing the nonce via a header read in a Server Component and threading it to a client boundary that needs it.
+- Keep `next.config.mjs` headers in sync with this middleware to avoid duplication or contradictions; this middleware’s CSP takes precedence at runtime.
+- For production behind a reverse proxy, ensure upstream does *not* strip or overwrite these headers.
+
+** DONE Dockerfile
+:PROPERTIES:
+:ID: dockerfile
+:TAGS: :docker:build:
+:OWNER: devops
+:END:
+**Purpose**: Container build for the Next.js SPA runtime.
+
+**Base Image**: node:20-alpine
+
+**Build Args / ENV**:
+- NODE_ENV=production
+- NEXT_TELEMETRY_DISABLED=1
+
+**Dependencies**:
+- corepack (pnpm via corepack)
+- curl (for healthcheck)
+- libc6-compat (Next.js compatibility on Alpine)
+
+**Build Steps**:
+1) Multi-stage: base → deps → builder → runner
+2) Cache PNPM store between layers
+3) Build with dev deps, run with production deps
+4) Healthcheck `/api/health`
+5) Non-root runtime user
+
+#+BEGIN_SRC dockerfile :tangle Dockerfile
+# ---------- Base ----------
+FROM node:20-alpine AS base
+WORKDIR /app
+# musl<->glibc compat helps some native deps
+RUN apk add --no-cache libc6-compat
+# enable pnpm via corepack
+ARG PNPM_VERSION=9
+ENV PNPM_HOME="/root/.local/share/pnpm"
+ENV PATH="${PNPM_HOME}:${PATH}"
+RUN corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+# ---------- Deps (installs node_modules with lockfile) ----------
+FROM base AS deps
+# Use a writable, cacheable PNPM store path
+ENV PNPM_STORE_DIR=/pnpm-store
+# Only copy manifests first for better layer caching
+COPY package.json pnpm-lock.yaml* ./
+# Install ALL deps (dev+prod) for the build step
+# Cache the store across builds
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store \
+    pnpm install --frozen-lockfile --store-dir /pnpm-store
+
+# ---------- Builder (runs the Next.js build) ----------
+FROM base AS builder
+ENV NODE_ENV=development
+ENV PNPM_STORE_DIR=/pnpm-store
+# Reuse node_modules from deps to avoid re-resolving
+COPY --from=deps /app/node_modules ./node_modules
+# Now copy the whole project
+COPY . .
+# Cache Next build artifacts to speed rebuilds
+RUN --mount=type=cache,id=next-cache,target=/app/.next/cache \
+    pnpm build
+
+# ---------- Runner (smallest possible runtime) ----------
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+# healthcheck uses curl
+RUN apk add --no-cache curl
+# non-root user
+RUN addgroup -g 1001 -S nodejs \
+ && adduser -S nextjs -u 1001
+
+# If you later switch to Next "output: standalone" we can copy the standalone bundle.
+# For now, copy the classic artifacts.
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+
+# Permissions and ports
+RUN chown -R nextjs:nodejs /app
+USER nextjs
+EXPOSE 3000
+
+# Simple healthcheck hits our API probe
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -fsS "http://localhost:3000/api/health" || exit 1
+
+# Start Next.js
+CMD ["node", "node_modules/next/dist/bin/next", "start", "-p", "3000"]
+#+END_SRC
+
+**Notes**
+- Swapping to Next’s `output: 'standalone'` later will shrink the runner; we’d copy `.next/standalone` and `.next/static` instead of `node_modules`.
+- The PNPM store is cached as a build mount; it won’t persist in the final image.
+- Healthcheck presumes you have `app/api/health/route.ts` (which you do in your tree).
+
+** DONE .dockerignore
+:PROPERTIES:
+:ID: dockerignore
+:TAGS: :docker:
+:OWNER: devops
+:END:
+
+**Purpose**: Keep images lean and builds deterministic.
+
+#+BEGIN_SRC conf :tangle .dockerignore
+# Node / Next
+node_modules
+.next
+.next/cache
+out
+dist
+
+# Package managers & caches
+.pnpm-store
+npm-cache
+.yarn
+.yarn/cache
+*.log
+
+# Env & local overrides
+.env
+.env.local
+.env.*.local
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+.idea
+.vscode
+
+# Docker build noise
+docker-compose.override.yml
+#+END_SRC
+
+** DONE next.config.mjs
+:PROPERTIES:
+:ID: next-config
+:TAGS: :nextjs:config:docker:
+:OWNER: devops
+:END:
+**Purpose**: Configure Next.js build/runtime for FairyDice.
+**Notes**: This file is executed at build time and runtime in both Docker and local dev.
+
+#+BEGIN_SRC javascript :tangle next.config.mjs
+/**
+ * FairyDice Next.js configuration
+ *
+ * - Enforces Content Security Policy (CSP) headers
+ * - Restricts allowed image domains
+ * - Pulls values from environment variables (.env/.env.local)
+ * - Keeps future hooks open for i18n, redirects, rewrites, etc.
+ */
+
+import { createHash } from "crypto";
+
+/**
+ * Generate a CSP header string. This version uses strict defaults
+ * but allows NEXT_PUBLIC_* domains or ENV-configured origins to pass.
+ */
+function buildCSP() {
+  // Default-src: self only.
+  let csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "connect-src 'self'",
+    "font-src 'self' data:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ];
+
+  // Allow CORS origins from env.
+  if (process.env.CORS_ORIGIN) {
+    const origins = process.env.CORS_ORIGIN.split(",");
+    origins.forEach((origin) => {
+      csp.push(`connect-src ${origin.trim()}`);
+    });
+  }
+
+  return csp.join("; ");
+}
+
+const nextConfig = {
+  reactStrictMode: true,
+
+  /**
+   * Security headers (applied at every route).
+   * Note: These headers are additive; in production
+   * you may need reverse proxy alignment (nginx, Caddy).
+   */
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: buildCSP(),
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+          {
+            key: "X-XSS-Protection",
+            value: "1; mode=block",
+          },
+        ],
+      },
+    ];
+  },
+
+  /**
+   * Image domains:
+   * - Localhost for dev
+   * - PlayCanvas CDN (if you host textures/assets there)
+   * - Add more via NEXT_IMAGE_DOMAINS env (comma-separated)
+   */
+  images: {
+    domains: [
+      "localhost",
+      "127.0.0.1",
+      "playcanvas.com",
+      ...(process.env.NEXT_IMAGE_DOMAINS
+        ? process.env.NEXT_IMAGE_DOMAINS.split(",")
+        : []),
+    ],
+  },
+
+  /**
+   * Experimental toggles, ready for future upgrades
+   */
+  experimental: {
+    optimizeCss: true,
+    scrollRestoration: true,
+  },
+};
+
+export default nextConfig;
+#+END_SRC
+
+**Notes**
+- CSP here is *strict but not final*: you’ll loosen/tighten as you add APIs (Discord, analytics, etc.).
+- If you output a standalone build, ensure reverse proxy (nginx/Caddy/Traefik) doesn’t strip headers.
+- Domains in `NEXT_IMAGE_DOMAINS` keep flexibility without changing this file.
+
+** TODO README.md
+:PROPERTIES:
+:ID: readme
+:TAGS: :docs:overview:
+:OWNER: core-team
+:END:
+
+** DONE tsconfig.json
+:PROPERTIES:
+:ID: tsconfig
+:TAGS: :ts:config:
+:OWNER: core-team
+:END:
+**Purpose**: TypeScript compiler configuration for FairyDice Next.js SPA.
+**Notes**: 
+- Enforces strict type-checking.
+- Supports modern module resolution (`bundler`).
+- Provides `@/` alias to project root for cleaner imports.
+- Includes Next.js-specific types (`next`, `next/image-types/global`).
+- Compatible with pnpm + Docker build contexts.
+
+#+BEGIN_SRC json :tangle tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "types": [
+      "node",
+      "next",
+      "next/types/global",
+      "next/image-types/global"
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "out",
+    "dist"
+  ]
+}
+#+END_SRC
+
+**Notes**
+- `noEmit` prevents stray JS output in Docker/CI builds.  
+- `incremental` accelerates rebuilds in dev containers.  
+- If Redux Toolkit is added, no changes needed; this config already supports its typing model.  
+
+
+* TODO APP
+:PROPERTIES:
+:ID: app-root-001
+:TAGS: :nextjs:spa:
+:OWNER: core-team
+:END:
+This section describes the root Next.js app directory and its subcomponents.
+
+
+** TODO app
+*** TODO app
+:PROPERTIES:
+:ID: app-dir-001
+:TAGS: :routes:api:
+:OWNER: frontend
+:END:
+Primary application code, including routing, layouts, and API endpoints.
+**** .git
+***** DONE .gitignore
+:PROPERTIES:
+:ID: gitignore
+:TAGS: :git:config:
+:OWNER: core-team
+:END:
+**Purpose**: Exclude build artifacts, secrets, caches, editor junk, and Emacs temp files.
+**Notes**: Covers Node/Next, pnpm, Docker, and Emacs/VSCode.
+
+#+BEGIN_SRC conf :tangle .gitignore
+# ------------------------
+# Node / Next.js
+# ------------------------
+node_modules/
+.next/
+.next/cache/
+out/
+dist/
+
+# ------------------------
+# Package managers & caches
+# ------------------------
+.pnpm-store/
+npm-cache/
+.yarn/
+.yarn/cache/
+*.log
+
+# ------------------------
+# Env / secrets
+# ------------------------
+.env
+.env.local
+.env.*.local
+
+# ------------------------
+# OS / Editor cruft
+# ------------------------
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Emacs temp/lock files
+*~
+#*#
+.dir-locals.el
+.projectile
+.emacs.desktop
+.emacs.desktop.lock
+.flycheck_*
+.#*
+
+# ------------------------
+# Docker noise
+# ------------------------
+docker-compose.override.yml
+#+END_SRC
+
+***** DONE .gitattributes
+:PROPERTIES:
+:ID: gitattributes
+:TAGS: :git:config:
+:OWNER: core-team
+:END:
+**Purpose**: Normalize line endings, linguist hints, merge strategies.
+**Notes**: Ensures LF endings, correct handling of shell scripts, and consistent language stats.
+
+#+BEGIN_SRC conf :tangle .gitattributes
+# Normalize all text files to LF
+ * text=auto eol=lf
+
+# Shell scripts must always use LF
+ *.sh text eol=lf
+
+# Lockfiles prefer "ours" merge to avoid churn
+ pnpm-lock.yaml merge=ours
+
+# Treat docs as documentation in GitHub linguist
+ *.org linguist-documentation
+ *.md linguist-documentation
+ docs/** linguist-documentation
+
+# Binary files (images, fonts) should not be altered
+ *.png binary
+ *.jpg binary
+ *.jpeg binary
+ *.gif binary
+ *.svg binary
+ *.woff binary
+ *.woff2 binary
+#+END_SRC
+
+***** DONE Git Remotes & Hooks
+:PROPERTIES:
+:ID: git-meta
+:TAGS: :git:repo:
+:OWNER: core-team
+:END:
+**Purpose**: Capture repo wiring for contributors.
+
+**Remotes**:
+- origin: git@github.com:ProjectFairydice/fairydice-spa.git
+
+**Default Branch**: main
+
+**Required Hooks**:
+- pre-commit: run lint (`pnpm lint`) and typecheck (`pnpm typecheck`)
+- commit-msg: enforce [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) style
+
+**Edge Cases**:
+- LFS usage: N/A (no large binaries in repo; all assets stored externally or fetched at build time)
+
+**** TODO api
+:PROPERTIES:
+:ID: api-dir-001
+:TAGS: :serverless:endpoints:
+:OWNER: backend
+:END:
+
+***** TODO health
+:PROPERTIES:
+:ID: api-health-001
+:TAGS: :monitoring:infra:
+:OWNER: devops
+:END:
+****** TODO route.ts
+:PROPERTIES:
+:ID: api-health-route
+:TAGS: :ts:endpoint:
+:OWNER: devops
+:END:
+
+***** TODO proxy
+:PROPERTIES:
+:ID: api-proxy-001
+:TAGS: :routing:proxy:
+:OWNER: backend
+:END:
+****** TODO [target]
+:PROPERTIES:
+:ID: api-proxy-target
+:TAGS: :dynamic:proxy:
+:OWNER: backend
+:END:
+******* TODO route.ts
+:PROPERTIES:
+:ID: api-proxy-target-route
+:TAGS: :ts:endpoint:
+:OWNER: backend
+:END:
+
+***** TODO session
+:PROPERTIES:
+:ID: api-session-001
+:TAGS: :auth:session:
+:OWNER: security
+:END:
+****** TODO route.ts
+:PROPERTIES:
+:ID: api-session-route
+:TAGS: :ts:endpoint:
+:OWNER: security
+:END:
+
+***** TODO v1
+:PROPERTIES:
+:ID: api-v1-001
+:TAGS: :versioned:api:
+:OWNER: backend
+:END:
+****** TODO example
+:PROPERTIES:
+:ID: api-v1-example
+:TAGS: :demo:example:
+:OWNER: backend
+:END:
+******* TODO route.ts
+:PROPERTIES:
+:ID: api-v1-example-route
+:TAGS: :ts:endpoint:
+:OWNER: backend
+:END:
+
+
+**** TODO error.tsx
+:PROPERTIES:
+:ID: error-page
+:TAGS: :error:ui:
+:OWNER: frontend
+:END:
+
+**** TODO layout.tsx
+:PROPERTIES:
+:ID: layout
+:TAGS: :ui:layout:
+:OWNER: frontend
+:END:
+
+**** TODO loading.tsx
+:PROPERTIES:
+:ID: loading
+:TAGS: :ui:loading:
+:OWNER: frontend
+:END:
+
+**** TODO page.tsx
+:PROPERTIES:
+:ID: root-page
+:TAGS: :ui:page:
+:OWNER: frontend
+:END:
+
+**** TODO [[...path]]
+:PROPERTIES:
+:ID: catchall
+:TAGS: :routing:dynamic:
+:OWNER: frontend
+:END:
+***** TODO page.tsx
+:PROPERTIES:
+:ID: catchall-page
+:TAGS: :ui:page:
+:OWNER: frontend
+:END:
+
+** TODO BIN
+:PROPERTIES:
+:ID: bin-root
+:TAGS: :infra:scripts:
+:OWNER: devops
+:END:
+
+*** TODO bin
+:PROPERTIES:
+:ID: bin-dir
+:TAGS: :infra:
+:OWNER: devops
+:END:
+**Purpose**: Container/CI helper scripts.
+
+*** DONE bin/entrypoint.sh
+:PROPERTIES:
+:ID: entrypoint
+:TAGS: :docker:script:
+:OWNER: devops
+:END:
+
+**Purpose**: Minimal, safe entrypoint wrapper for diagnostics and graceful exec.
+
+#+BEGIN_SRC bash :tangle bin/entrypoint.sh :shebang "#!/usr/bin/env bash"
+set -Eeuo pipefail
+
+echo "[entrypoint] FairyDice Next.js — $(date -Is)"
+echo "[entrypoint] NODE_ENV=${NODE_ENV:-unset}  PORT=${PORT:-unset}"
+echo "[entrypoint] PWD=$(pwd)"
+
+# Basic runtime sanity checks
+if ! command -v node >/dev/null 2>&1; then
+  echo "[entrypoint] ERROR: node not found on PATH" >&2
+  exit 127
+fi
+
+if [ ! -d ".next" ]; then
+  echo "[entrypoint] WARNING: .next missing; did the image build run 'pnpm build'?" >&2
+fi
+
+# Hand off to the image CMD
+exec "$@"
+#+END_SRC
+
+#+BEGIN_SRC bash :tangle-mode (identity #o755)
+# Make sure entrypoint is executable when tangled
+#+END_SRC
+
+
+** TODO LIB
+:PROPERTIES:
+:ID: lib-root
+:TAGS: :code:library:
+:OWNER: core-team
+:END:
+
+*** TODO lib
+:PROPERTIES:
+:ID: lib-dir
+:TAGS: :modules:
+:OWNER: core-team
+:END:
+
+**** TODO analytics
+:PROPERTIES:
+:ID: analytics
+:TAGS: :metrics:client:
+:OWNER: frontend
+:END:
+***** TODO analytics.client.tsx
+:PROPERTIES:
+:ID: analytics-client
+:TAGS: :ts:metrics:
+:OWNER: frontend
+:END:
+
+**** TODO bff
+:PROPERTIES:
+:ID: bff
+:TAGS: :backend:frontend:
+:OWNER: backend
+:END:
+***** TODO upstreams.server.ts
+:PROPERTIES:
+:ID: upstreams-server
+:TAGS: :ts:bff:
+:OWNER: backend
+:END:
+
+**** TODO cache
+:PROPERTIES:
+:ID: cache
+:TAGS: :cache:infra:
+:OWNER: backend
+:END:
+***** TODO tags.ts
+:PROPERTIES:
+:ID: cache-tags
+:TAGS: :ts:cache:
+:OWNER: backend
+:END:
+
+**** TODO features
+:PROPERTIES:
+:ID: features
+:TAGS: :redux:features:
+:OWNER: frontend
+:END:
+
+***** TODO api
+:PROPERTIES:
+:ID: feat-api
+:TAGS: :feature:api:
+:OWNER: backend
+:END:
+
+***** TODO counter
+:PROPERTIES:
+:ID: feat-counter
+:TAGS: :feature:counter:
+:OWNER: frontend
+:END:
+****** TODO counterSlice.ts
+:PROPERTIES:
+:ID: counter-slice
+:TAGS: :redux:slice:
+:OWNER: frontend
+:END:
+
+***** TODO ui
+:PROPERTIES:
+:ID: feat-ui
+:TAGS: :feature:ui:
+:OWNER: frontend
+:END:
+****** TODO uiSlice.ts
+:PROPERTIES:
+:ID: ui-slice
+:TAGS: :redux:slice:
+:OWNER: frontend
+:END:
+
+***** TODO user
+:PROPERTIES:
+:ID: feat-user
+:TAGS: :feature:user:
+:OWNER: backend
+:END:
+****** TODO userSlice.ts
+:PROPERTIES:
+:ID: user-slice
+:TAGS: :redux:slice:
+:OWNER: backend
+:END:
+
+**** TODO security
+:PROPERTIES:
+:ID: security
+:TAGS: :security:auth:
+:OWNER: security
+:END:
+***** TODO cookies.ts
+:PROPERTIES:
+:ID: cookies
+:TAGS: :ts:security:
+:OWNER: security
+:END:
+
+***** TODO csp.ts
+:PROPERTIES:
+:ID: csp
+:TAGS: :ts:security:
+:OWNER: security
+:END:
+
+***** TODO csrf.ts
+:PROPERTIES:
+:ID: csrf
+:TAGS: :ts:security:
+:OWNER: security
+:END:
+
+**** TODO store
+:PROPERTIES:
+:ID: store
+:TAGS: :redux:store:
+:OWNER: frontend
+:END:
+***** TODO hooks.ts
+:PROPERTIES:
+:ID: hooks
+:TAGS: :redux:hooks:
+:OWNER: frontend
+:END:
+
+***** TODO providers.tsx
+:PROPERTIES:
+:ID: providers
+:TAGS: :redux:providers:
+:OWNER: frontend
+:END:
+
+***** TODO selectors.ts
+:PROPERTIES:
+:ID: selectors
+:TAGS: :redux:selectors:
+:OWNER: frontend
+:END:
+
+***** TODO store.ts
+:PROPERTIES:
+:ID: store-ts
+:TAGS: :redux:store:
+:OWNER: frontend
+:END:
+
+** TODO PUBLIC
+:PROPERTIES:
+:ID: public-root
+:TAGS: :static:assets:
+:OWNER: core-team
+:END:
+
+*** TODO public
+:PROPERTIES:
+:ID: public-dir
+:TAGS: :assets:
+:OWNER: frontend
+:END:
+**** TODO robots.txt
+:PROPERTIES:
+:ID: robots
+:TAGS: :seo:infra:
+:OWNER: frontend
+:END:
+
+** TODO TYPES
+:PROPERTIES:
+:ID: types-root
+:TAGS: :ts:types:
+:OWNER: core-team
+:END:
+
+*** TODO types
+:PROPERTIES:
+:ID: types-dir
+:TAGS: :ts:
+:OWNER: core-team
+:END:
+**** TODO api.ts
+:PROPERTIES:
+:ID: types-api
+:TAGS: :ts:api:
+:OWNER: backend
+:END:
+
+**** TODO state.ts
+:PROPERTIES:
+:ID: types-state
+:TAGS: :ts:state:
+:OWNER: frontend
+:END:
