@@ -1,0 +1,207 @@
+#+TITLE: Unified User IO (UU-IO) — Subproject Boilerplate
+#+DESCRIPTION: Human–Computer IO Patterns with Least-Able-First design; Radial Pop-Out Context Menu as primary UI; Radial text-tokens favored over on-screen keyboards.
+#+PROPERTY: header-args:plantuml :results file :exports both
+#+PROPERTY: header-args:json :results code
+
+* Project: Unified User IO (UU-IO)
+** Global Principle: Least-Able First
+*** Statement
+- The operative ceiling is set by the *least-able user’s* degree and control.
+- All modalities must degrade gracefully to binary scanning and dwell-activation.
+- Preference order (default): =Radial text-tokens= → Scanning → Keystroke/Completion → Others.
+*** WAI-ARIA Scaffold
+- Roles: =button=, =menu=, =menuitemradio=, =combobox=, =option=, =dialog=, =status=, =progressbar=.
+- Live regions: =aria-live= polite for prompts; assertive only for safety/critical.
+- Focus model: =aria-activedescendant= for gaze/scan; roving tabindex for radial menus.
+*** Non-Functional Constraints
+- Latency budgets per modality; fallbacks within 2 steps.
+- Privacy & safety for bio/neural streams; consent + local processing preference.
+- Internationalization: token lexicons, phoneme sets, braille tables, sign-language hooks.
+
+** Primary UI: Radial Pop-Out Context Menu
+*** Interaction Model
+- Token wheel with sectors (primary intents), rings (depth), and slices (tokens).
+- Activation: switch scan, dwell, gaze-confirm, click/tap, voice keyword.
+*** Radial Text-Tokens Input (Preferred)
+- Token grammar: [[IO Patterns → Symbolic IO]]; device-agnostic; predictive =Completion= optional.
+- Visual affordances: high-contrast, large targets, motor-tolerant spacing.
+*** Audio Coexistence
+- Procedural mixer must duck/sidechain around speech input/output; no masking.
+- Earcons map to state changes (enter/confirm/cancel/error) with tactile mirrors.
+
+** Deliverables
+*** Specs
+- =uu-io.radial-spec.org=, =uu-io.aria-map.json=, =uu-io.hifi.flows.puml=
+*** Prototypes
+- Minimal scanning radial (binary switch), touch/gaze variant, voice-augmented variant.
+*** Verification
+- Scenario matrix across abilities; WCAG 2.2/ARIA-AT runs; latency + error recovery tests.
+
+* Input Archetype Patterns
+** Symbolic (Keystroke / Completion / Token)
+*** Devices/Techniques
+- Physical/adaptive/chorded keyboards; on-screen keyboards; token-wheel selection; IDE/code completion; language models for next-token hints.
+*** Accessibility Modes
+- Scanning keyboards; dwell type; sticky modifiers; large-key overlays.
+** Spatial Pointing
+*** Devices/Techniques
+- Mouse/trackball/vertical mice; touchpads; trackpoints; 3D mice.
+*** Accessibility Modes
+- Acceleration curves, snap-to-target, enlarged hit regions.
+** Direct Touch
+*** Devices/Techniques
+- Capacitive touchscreens; pen displays; interactive whiteboards.
+*** Accessibility Modes
+- Lift-to-confirm, palm rejection, edge guards, one-handed reach zoning.
+** Gesture & Motion
+*** Devices/Techniques
+- Camera/body tracking; IMU armbands; VR finger tracking.
+*** Accessibility Modes
+- Low-amplitude gestures; seated-only sets; pose hold-to-confirm.
+** Haptic/Glove
+*** Devices/Techniques
+- Data gloves; force/micro-haptic gloves; exoskeletal assist.
+*** Accessibility Modes
+- Adaptive force thresholds; tremor filtering.
+** Voice & Breath
+*** Devices/Techniques
+- ASR command/dictation; wake words; sip-and-puff (binary/analog).
+*** Accessibility Modes
+- Noise-robust grammars; cough/effort safeguards; silent-click phonemes.
+** Gaze & Orientation
+*** Devices/Techniques
+- Eye trackers; head trackers; dwell and saccade gestures.
+*** Accessibility Modes
+- Anti-Midas touch, confirmation halos, blink-filtering.
+** Neural/Biosignal
+*** Devices/Techniques
+- EEG/EMG; tongue/intraoral; bio-switches.
+*** Accessibility Modes
+- Rapid calibration; confidence-gated actions; safe fallback to scanning.
+** Tangible/Physical Objects
+*** Devices/Techniques
+- Token-on-surface; knobs/dials; tagged props.
+*** Accessibility Modes
+- Large-form tokens; magnetic alignment; audible confirmations.
+** Binary/Discrete Switching
+*** Devices/Techniques
+- Single/multi-switch; pedals; shoulder bumpers.
+*** Accessibility Modes
+- Auto-scan; step-scan; error-forgiving backtrack.
+
+* Output Archetype Patterns
+** Visual Display
+*** Channels
+- Text/icon; focus/highlight; immersive (VR/AR); e-ink/braille refresh.
+*** Accessibility Modes
+- High-contrast themes; font scaling; motion reduction; caption overlays.
+** Auditory
+*** Channels
+- TTS prompts; spatialized cues; earcons; sidechain ducking for ASR.
+*** Accessibility Modes
+- Rate/pitch control; transcript mirrors; non-speech alternatives.
+** Haptic/Tactile
+*** Channels
+- Vibration patterns; force-feedback; braille cells.
+*** Accessibility Modes
+- Intensity profiles per user; safe force limits.
+** Motion/Force
+*** Channels
+- Platform motion; active resistance; kinesthetic nudges.
+*** Accessibility Modes
+- Seated-stable modes; vestibular-safe profiles.
+** Thermal
+*** Channels
+- Heat/cool cues for states or warnings.
+*** Accessibility Modes
+- Narrow safe band; opt-in only; redundant cues.
+** Olfactory/Gustatory (Experimental)
+*** Channels
+- Scent emitters; electro-taste prototypes.
+*** Accessibility Modes
+- Allergens/off switch; symbolic alt cues.
+** Environmental/Spatial
+*** Channels
+- Ambient light; airflow; room bass.
+*** Accessibility Modes
+- Non-intrusive defaults; user consent; timeboxed effects.
+** Multimodal Orchestration
+*** Channels
+- Synchronized sight+sound+touch with shared timing model.
+*** Accessibility Modes
+- Redundant semantics; graceful degradation; user-selectable profiles.
+
+* IO Patterns
+** Symbolic IO
+*** Inputs
+- Token-wheel selection; Keystroke; Completion; Voice dictation.
+*** Outputs
+- Text/braille; polite =aria-live= prompts; earcons/tactile confirms.
+*** UI Contract
+- Radial Pop-Out Menu as primary; scanning + dwell; undo/confirm pattern.
+** Spatial IO
+*** Inputs
+- Point-and-plane; direct touch.
+*** Outputs
+- Focus rings, cursor magnets, target previews.
+*** UI Contract
+- Radial menu at cursor/focus; Fitts-optimized target sizing.
+** Gesture ↔ Haptic IO
+*** Inputs
+- Camera/IMU gestures; glove articulation.
+*** Outputs
+- Haptic confirms; force fences; low-vision complements.
+*** UI Contract
+- Gesture grammar with discoverable prompts; error-tolerant holds.
+** Voice ↔ Audio IO
+*** Inputs
+- ASR commands; breath control.
+*** Outputs
+- TTS, spatial prompts, sidechain ducking; transcript pane.
+*** UI Contract
+- Barge-in allowed; confirmation echoes; no mixer masking.
+** Gaze ↔ Visual Emphasis IO
+*** Inputs
+- Gaze focus; head pose.
+*** Outputs
+- Highlight rails; auto-scroll; dwell timers.
+*** UI Contract
+- Anti-Midas dwell-confirm; glance-to-preview, act-to-commit.
+** Neural/Biofeedback IO
+*** Inputs
+- EEG/EMG/tongue; bio-switch.
+*** Outputs
+- Confidence meters; gentle haptics; private local visualizations.
+*** UI Contract
+- Fast calibration; privacy by default; safe fallback to Binary/Scanning.
+** Binary/Scanning IO
+*** Inputs
+- Single/multi-switch; pedal; shoulder.
+*** Outputs
+- Strong tactile/audio confirms; clear focus indication.
+*** UI Contract
+- Auto/step scan; reversible steps; timeouts with resume.
+
+* Roadmap
+** MVP
+*** Binary scanning radial menu; speech with ducking; tactile confirms.
+** Beta
+*** Gaze and touch variants; token lexicon packs; ARIA-AT test suite.
+** GA
+*** Multimodal orchestration; per-user profiles; localization bundles.
+
+* Test Plan
+** Usability & Accessibility
+*** Personas
+- Motor-limited, low-vision, Deaf/HoH, aphasia, cognitive load sensitivity.
+*** Metrics
+- Time-to-token, error rate, recovery success, cognitive load (NASA-TLX), ASR WER with ducking.
+
+* Open Questions
+** Token Lexicon
+*** How to balance expressivity vs dwell time?
+** Gesture Grammar
+*** What’s the minimal, seated, low-amplitude set?
+** Bio/Neural
+*** What confidence thresholds feel reliable without fatigue?
+
