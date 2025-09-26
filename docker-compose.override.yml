@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  app:
+    # Reuse the same build context, but target the dev-friendly stage
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    # Mount the working tree into the container for hot reload
+    volumes:
+      - ./:/app
+      # Keep container-installed modules; don't shadow with host
+      - /app/node_modules
+      # Optional: persist Next cache for faster rebuilds between runs
+      - next-cache:/app/.next/cache
+    # Development command (binds on all interfaces)
+    command: ["pnpm", "dev", "-p", "3000", "--hostname", "0.0.0.0"]
+    # Friendlier logs during dev
+    environment:
+      NODE_ENV: "development"
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: "3000"
+      # Make file watching resilient across Docker Desktop/VM/WSL
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NEXT_WEBPACK_USEPOLLING: "true"
+    # Developer ergonomics
+    stdin_open: true
+    tty: true
+    # Healthcheck optional in dev (kept light)
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    ports:
+      - "3000:3000"
+
+volumes:
+  next-cache:

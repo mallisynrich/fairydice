@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fairydice/app:latest
+    container_name: fairydice-app
+    # Network
+    ports:
+      - "3000:3000"
+    # Environment
+    environment:
+      NODE_ENV: "production"
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: "3000"
+    # Healthcheck mirrors Dockerfile but lets Compose manage restart policy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # Security: drop privs; Dockerfile already runs as non-root
+    user: "1001:1001"
+    # Read-only FS with explicit writable temp dirs (optional hardening)
+    # read_only: true
+    # tmpfs:
+    #   - /tmp
+    #   - /app/.next/cache
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
