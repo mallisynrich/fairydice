@@ -1,36 +1,48 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ------------------------
+# Node / Next.js
+# ------------------------
+node_modules/
+.next/
+.next/cache/
+out/
+dist/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# ------------------------
+# Package managers & caches
+# ------------------------
+.pnpm-store/
+npm-cache/
+.yarn/
+.yarn/cache/
+*.log
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
+# ------------------------
+# Env / secrets
+# ------------------------
 .env
+.env.local
+.env.*.local
 
-# vercel
-.vercel
+# ------------------------
+# OS / Editor cruft
+# ------------------------
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# Emacs temp/lock files
+*~
+#*#
+.dir-locals.el
+.projectile
+.emacs.desktop
+.emacs.desktop.lock
+.flycheck_*
+.#*
+
+# ------------------------
+# Docker noise
+# ------------------------
+docker-compose.override.yml

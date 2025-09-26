@@ -1,0 +1,28 @@
+# Node / Next
+node_modules
+.next
+.next/cache
+out
+dist
+
+# Package managers & caches
+.pnpm-store
+npm-cache
+.yarn
+.yarn/cache
+*.log
+
+# Env & local overrides
+.env
+.env.local
+.env.*.local
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+.idea
+.vscode
+
+# Docker build noise
+docker-compose.override.yml
