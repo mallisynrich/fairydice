@@ -1,0 +1,98 @@
+# Formal specs from official sources (W3C / WHATWG)
+
+**Core, author-facing rules**
+
+* **WCAG 2.2 (W3C Recommendation).** Your conformance target (A/AA/AAA) lives here; success criteria define what “accessible” means. ([W3C][1])
+* **WAI-ARIA 1.2 (W3C Recommendation).** Roles, states, and properties for rich UIs. ([W3C][2])
+* **ARIA in HTML (W3C Technical Report).** The formal authoring rules for using ARIA in HTML—what’s allowed, what’s forbidden. ([W3C][3])
+
+**Name/description computation (how AT gets a label)**
+
+* **Accessible Name and Description Computation 1.2 (W3C TR).** The normative algorithm for accessible names/descriptions (e.g., how `aria-label`, `<label>`, `alt`, etc. resolve). ([W3C][4])
+
+**API mapping layer (how browsers expose semantics to AT)**
+
+* **Core Accessibility API Mappings 1.2 (W3C TR).** Cross-tech baseline mappings for roles/states/props. ([W3C][5])
+* **HTML Accessibility API Mappings 1.0 (W3C TR).** HTML-specific mappings atop CORE-AAM + AccName 1.2. ([W3C][6])
+* **Graphics AAM 1.0 (W3C Recommendation).** Mappings for the Graphics module (charts/diagrams). ([W3C][7])
+* **SVG AAM 1.0 (W3C TR).** SVG-specific mappings (for accessible charts/graphics). ([W3C][8])
+* **DPUB AAM 1.1 (W3C TR).** Mappings for Digital Publishing roles (if you use them). ([W3C][9])
+
+**Authoritative but informative resources (useful, not normative)**
+
+* **WAI-ARIA Authoring Practices (APG).** Patterns/keyboard behavior guidance; a Working Group Note. ([W3C][10])
+* **ACT Rules (WAI).** Machine-testable rules aligned to WCAG (e.g., SVG name rule). ([W3C][11])
+
+---
+
+# What your SPA documentation must include to be “ARIA-compliant” in practice
+
+1. **Accessibility Policy & Conformance Target**
+
+   * WCAG 2.2 conformance level (typically **AA**) and scope (SPA + routes). Reference WCAG 2.2 and its conformance section. ([W3C][1])
+
+2. **Landmarks & Page Structure Plan**
+
+   * Your HTML/ARIA landmark map per route/layout (`main`, `nav`, `header`, `complementary`, etc.) with constraints from *ARIA in HTML* (no forbidden roles, no misapplied landmarks). ([W3C][3])
+
+3. **Roles/States/Props Inventory**
+
+   * Which ARIA roles are used, why they’re needed (only when native HTML can’t do it), and the exact attributes used. Backed by **WAI-ARIA 1.2**. ([W3C][2])
+
+4. **Keyboard Interaction Model**
+
+   * Per widget: tab/arrow/escape behavior, roving tabindex, focus trapping rules; align with APG patterns (informative) and ensure resulting behavior satisfies WCAG operability. ([W3C][10])
+
+5. **Focus Management & Routing**
+
+   * SPA route changes must move programmatic focus and update the accessible name/title of the “page” region; document how you announce route changes (e.g., focus `h1`, live region). Ties to WCAG perceivable/operable, and ARIA usage rules. ([W3C][12])
+
+6. **Name/Description Strategy**
+
+   * Source-of-truth rules for labels (`label`, `aria-label`, `aria-labelledby`, `alt`, `title`) per component, conforming to **AccName 1.2** computation. Include exceptions (icon-only buttons, custom controls). ([W3C][4])
+
+7. **Live Regions & Status Announcements**
+
+   * When and how you use `aria-live`/`role="status"/"alert"` for async updates (loading, errors, toasts), with constraints from ARIA in HTML. ([W3C][3])
+
+8. **Graphics & Data Viz Accessibility**
+
+   * If using SVG/canvas charts, document roles and naming strategy consistent with **SVG-AAM** / **Graphics-AAM**; include keyboard nav or fallbacks. ([W3C][8])
+
+9. **HTML-First Policy**
+
+   * A statement that native HTML semantics are preferred; ARIA added only when necessary (“no ARIA is better than bad ARIA”), aligning with ARIA in HTML constraints. ([W3C][3])
+
+10. **AAM Awareness Note (Browser/AT layer)**
+
+* Brief explainer that correct semantics rely on UA mappings defined in **CORE-AAM** and **HTML-AAM**; include a support matrix if you rely on newer roles. ([W3C][5])
+
+11. **Color/Contrast & Motion Guidelines**
+
+* WCAG 2.2 criteria coverage (contrast, focus visible, reduced motion, target sizes, drag alternatives—new/updated SCs). Link your design tokens to the specific SCs. ([W3C][13])
+
+12. **Testing Protocols**
+
+* Tooling (axe, ACT rules), manual SR passes (NVDA, JAWS, VoiceOver, TalkBack), keyboard-only checks, and route-change announcements; tie automated checks to ACT pages where applicable. ([W3C][11])
+
+13. **Accessibility Statement**
+
+* Public statement referencing WCAG 2.2 level, contact channel for issues, and known limitations—standard industry practice anchored to WCAG overview. ([W3C][12])
+
+---
+
+If you want, I can turn this into a one-page “Accessibility Spec Index” in your repo with links and checkboxes mapped to each WCAG 2.2 success criterion and the ARIA/HTML constraints your components rely on.
+
+[1]: https://www.w3.org/TR/WCAG22/?utm_source=chatgpt.com "Web Content Accessibility Guidelines (WCAG) 2.2"
+[2]: https://www.w3.org/TR/wai-aria-1.2/?utm_source=chatgpt.com "Accessible Rich Internet Applications (WAI-ARIA) 1.2 - W3C"
+[3]: https://www.w3.org/TR/html-aria/?utm_source=chatgpt.com "ARIA in HTML"
+[4]: https://www.w3.org/TR/accname-1.2/?utm_source=chatgpt.com "Accessible Name and Description Computation 1.2 - W3C"
+[5]: https://www.w3.org/TR/core-aam-1.2/?utm_source=chatgpt.com "Core Accessibility API Mappings 1.2"
+[6]: https://www.w3.org/TR/html-aam-1.0/?utm_source=chatgpt.com "HTML Accessibility API Mappings 1.0"
+[7]: https://www.w3.org/standards/history/graphics-aam-1.0/?utm_source=chatgpt.com "Graphics Accessibility API Mappings publication history"
+[8]: https://www.w3.org/TR/svg-aam-1.0/?utm_source=chatgpt.com "SVG Accessibility API Mappings"
+[9]: https://www.w3.org/TR/dpub-aam-1.1/?utm_source=chatgpt.com "Digital Publishing Accessibility API Mappings 1.1"
+[10]: https://www.w3.org/TR/2021/NOTE-wai-aria-practices-1.2-20211129/?utm_source=chatgpt.com "WAI-ARIA Authoring Practices 1.2 - W3C"
+[11]: https://www.w3.org/WAI/standards-guidelines/act/rules/7d6734/2022-06-23/?utm_source=chatgpt.com "SVG element with explicit role has non-empty accessible ..."
+[12]: https://www.w3.org/WAI/standards-guidelines/wcag/?utm_source=chatgpt.com "WCAG 2 Overview | Web Accessibility Initiative (WAI)"
+[13]: https://www.w3.org/WAI/standards-guidelines/wcag/new-in-22/?utm_source=chatgpt.com "What's New in WCAG 2.2 | Web Accessibility Initiative (WAI)"
