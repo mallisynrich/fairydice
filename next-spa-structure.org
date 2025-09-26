@@ -1,0 +1,269 @@
+* How is a Next.js SPA server for Linux/Docker structured?
+:PROPERTIES:
+:Source: "project.org.txt (pasted synthesis across Next.js guides: app router, security, instrumentation, BFF, caching, i18n, etc.)"
+:Retrieved: 2025-09-24
+:Type: plan|scaffold
+:Length: ~1200
+:ReadingTime: 7
+:HeadingDepth: 3
+:Sections: 11
+:Tags: Next.js, SPA, App Router, Docker, Linux, BFF, security, instrumentation, caching
+:END:
+
+** [ ] It is proposed that Clarifying Questions guide the scaffold
+   It is suggested that these questions mirror the file’s “final-leaf” emphases (security, instrumentation, caching, migration) and will lock the SPA shell before adding features.
+   - [ ] It is asked whether the SPA shell should route all paths to a single UI (e.g., `app/[[...path]]/page.tsx`) for client-side navigation.
+   - [ ] It is asked which authentication mode is intended (Auth.js via provider vs. custom JWT in route handlers) given middleware and data-security constraints.
+   - [ ] It is asked what analytics target is preferred (Vercel Analytics vs. custom Web Vitals endpoint) per the analytics guide.
+   - [ ] It is asked which upstream APIs the BFF must aggregate first (list 2–3) to shape route handler stubs.
+   - [ ] It is asked whether CSP will use strict nonces/hashes, and which domains must be whitelisted for scripts, styles, images.
+   - [ ] It is asked which environments are required at launch (`.env`, `.env.local`, runtime env via Docker/compose) and which variables must be public (`NEXT_PUBLIC_*`).
+   - [ ] It is asked what caching posture the SPA should take (default `no-store` for dynamic fetches vs. selective `revalidate`/tagged caches).
+   - [ ] It is asked whether i18n domains/locales are in scope now or TBI.
+   - [ ] It is asked which error boundaries/loading UIs are desired for the SPA shell (files `error.tsx`, `loading.tsx`) and whether “draft mode” is required for CMS previews.
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "Question Map for SPA Decisions"
+   package "Decisions" {
+     node "Routing Mode\n([[...path]] SPA?)" as R
+     node "Auth Strategy\n(Auth.js vs JWT)" as A
+     node "Analytics\n(Vercel vs Custom)" as V
+     node "BFF Targets\n(Upstreams)" as B
+     node "CSP Policy\n(nonces/hashes)" as C
+     node "Env Layout\n(.env*, runtime)" as E
+     node "Cache Posture\n(no-store vs revalidate)" as K
+     node "i18n Scope" as I
+     node "UX Shell\n(error/loading/draft)" as U
+   }
+   R --> A
+   A --> C
+   V --> E
+   B --> K
+   E --> K
+   U --> R
+   @enduml
+   #+END_SRC
+
+** [ ] It is asserted that the SPA Shell & Entry Point define the core UI structure
+   It is inferred that a single shell renders all routes client-side, while remaining compatible with App Router conventions from the file.
+   - Files (stubs#comments):
+     - `app/layout.tsx` — *stub#wrap global UI, font, metadata; TBI theme/provider injection*
+     - `app/[[...path]]/page.tsx` — *stub#SPA shell; client navigation; mounts feature routes; TBI guarded sections*
+     - `app/error.tsx` — *stub#global error UI; aligns with “Debugging” leaf*
+     - `app/loading.tsx` — *stub#suspense fallback; aligns with “Lazy Loading” leaf*
+     - `app/globals.css` — *stub#base styles; TBI CSS-in-JS swap if chosen*
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "SPA Shell with App Router"
+   package "app" {
+     [layout.tsx] -> [[...path]/page.tsx]
+     [[...path]/page.tsx] --> (Client Router State)
+     [[...path]/page.tsx] ..> [loading.tsx]
+     [[...path]/page.tsx] ..> [error.tsx]
+   }
+   @enduml
+   #+END_SRC
+
+** [ ] It is suggested that State Management is staged with Redux/Thunk (TBI)
+   It is noted that the file requests Redux/Thunk later; a provider stub is placed but concrete setup is deferred.
+   - Files (stubs#comments):
+     - `app/providers.tsx` — *stub#ReduxProvider placeholder; TBI store/thunk wiring*
+     - `state/store.ts` — *stub#configureStore TBI; no slices yet*
+     - `state/slices/_readme.md` — *stub#pattern: featureName/slice.ts; async thunks colocated*
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "Deferred State Wiring"
+   component "ReduxProvider (TBI)" as RP
+   component "Thunk Middleware (TBI)" as TM
+   [layout.tsx] ..> RP
+   RP ..> TM
+   @enduml
+   #+END_SRC
+
+** [ ] It is observed that Middleware & Security enforce request policy
+   It is said that the file emphasizes CSP, cookies, and auth checks via middleware.
+   - Files (stubs#comments):
+     - `middleware.ts` — *stub#auth guard; stub#locale hint optional; TBI route-based checks*
+     - `security/csp.ts` — *stub#nonce generation; stub#headers schema; aligns with CSP guide*
+     - `security/cookies.ts` — *stub#httpOnly, sameSite=Strict; aligns with data-security*
+     - `security/csrf.ts` — *stub#token issue/verify; TBI per form routes*
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "Middleware Gate"
+   [Request] --> (middleware.ts)
+   (middleware.ts) --> (Auth Check?) : allow/redirect
+   (middleware.ts) --> (Inject CSP Nonce)
+   (middleware.ts) --> (Set Secure Cookies)
+   @enduml
+   #+END_SRC
+
+** [ ] It is indicated that the BFF Layer shapes upstream calls behind route handlers
+   It is inferred that SPA client calls local handlers; handlers orchestrate third-party APIs securely, as in the BFF leaf.
+   - Files (stubs#comments):
+     - `app/api/health/route.ts` — *stub#liveness/readiness for Docker/K8s*
+     - `app/api/session/route.ts` — *stub#login/logout; TBI provider/JWT*
+     - `app/api/proxy/[...path]/route.ts` — *stub#safe proxy with allowlist + caching tags*
+     - `app/api/v1/<feature>/route.ts` — *stub#feature BFF endpoints; response shaping*
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "BFF Orchestration"
+   actor Client
+   Client -> "API /api/v1/*" : fetch
+   "API /api/v1/*" -> "Upstream A"
+   "API /api/v1/*" -> "Upstream B"
+   "API /api/v1/*" --> Client : shaped JSON
+   @enduml
+   #+END_SRC
+
+** [ ] It is noted that Analytics & Observability are initialized via instrumentation
+   It is said that per the analytics/instrumentation leaves, server and client entry points are stubbed for later providers.
+   - Files (stubs#comments):
+     - `instrumentation.ts` — *stub#OpenTelemetry wiring TBI; traces for BFF*
+     - `instrumentation.client.ts` — *stub#error tracker + Web Vitals bridge TBI*
+     - `app/analytics.tsx` — *stub#Vercel Analytics opt-in or custom endpoint*
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "Instrumentation Hooks"
+   [instrumentation.ts] --> (TracerProvider TBI)
+   [instrumentation.client.ts] --> (Web Vitals TBI)
+   [analytics.tsx] --> (Vercel or Custom)
+   @enduml
+   #+END_SRC
+
+** [ ] It is said that Caching & Draft Mode policies prefer dynamic SPA freshness
+   It is inferred that SPA endpoints default to dynamic (`no-store`) while allowing selective revalidation or tag-based invalidation where safe.
+   - Files (stubs#comments):
+     - `lib/fetcher.ts` — *stub#fetch with {cache:"no-store"} default; TBI overrides*
+     - `lib/revalidate.ts` — *stub#revalidatePath/tag helpers; admin-only use*
+     - `app/draft/route.ts` — *stub#enable/disable draft mode per guide*
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "Cache Posture"
+   (Client Fetch) --> (BFF Handler) : no-store by default
+   (BFF Handler) --> (Revalidate Tag?) : selective
+   @enduml
+   #+END_SRC
+
+** [ ] It is observed that Environment & Config anchor deployment for Linux/Docker
+   It is suggested that images run with runtime env; minimal Next config plus Docker artifacts reflect the file’s env and custom-server cautions.
+   - Files (stubs#comments):
+     - `next.config.mjs` — *stub#headers() to emit CSP; images/domains TBI*
+     - `.env.example` — *stub#vars with comments; no secrets committed*
+     - `Dockerfile` — *stub#multi-stage: deps → builder → runner; `NODE_ENV=production`*
+     - `docker-compose.yml` — *stub#local dev stack (app + mock upstreams)*
+     - `bin/entrypoint.sh` — *stub#migrate/env validation; `node server.js` TBI if custom*
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "Dockerized Build Stages"
+   node "deps" as D
+   node "builder" as B
+   node "runner" as R
+   D --> B --> R
+   R --> (Next.js Start)
+   @enduml
+   #+END_SRC
+
+** [ ] It is asserted that Local Development & Debugging mirror fast-refresh guidance
+   It is indicated that commands and flags align with the debugging leaf and memory-usage cautions.
+   - Scripts (stubs#comments in package.json):
+     - `dev` — *stub#next dev with strict mode; TBI custom port*
+     - `build` — *stub#next build with telemetry opt-in/out note*
+     - `start` — *stub#next start; `NODE_OPTIONS=--max_old_space_size` TBI*
+     - `lint`, `typecheck` — *stub#CI cache friendliness*
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "Dev Loop"
+   actor Dev
+   Dev -> (next dev)
+   (next dev) -> (Fast Refresh)
+   (next dev) -> (Error Overlay)
+   @enduml
+   #+END_SRC
+
+** [ ] It is noted that the Directory Tree encodes the patterned stubs
+   It is described that this tree enumerates single-entry SPA shell, BFF, security, instrumentation, env, and Docker—each annotated with *stubs#comments for TBI modules/middlewares.
+   - Tree (indicative):
+     - `/app`
+       - `/[[...path]]/page.tsx` — *stub#SPA client shell*
+       - `layout.tsx` — *stub#wrap providers; inject CSP nonce attr TBI*
+       - `error.tsx` — *stub#boundary UI*
+       - `loading.tsx` — *stub#suspense*
+       - `/api`
+         - `/health/route.ts` — *stub#k8s/compose healthz*
+         - `/session/route.ts` — *stub#auth session ops TBI*
+         - `/proxy/[...path]/route.ts` — *stub#allowlist proxy + tags TBI*
+         - `/v1/<feature>/route.ts` — *stub#BFF endpoints TBI*
+     - `/lib`
+       - `fetcher.ts` — *stub#no-store default*
+       - `revalidate.ts` — *stub#path/tag helpers (admin only)*
+     - `/security`
+       - `csp.ts` — *stub#nonce + headers() glue*
+       - `cookies.ts` — *stub#secure flags*
+       - `csrf.ts` — *stub#token utils*
+     - `/state`
+       - `store.ts` — *stub#configureStore TBI*
+       - `/slices/_readme.md` — *stub#slice pattern*
+     - `/observability`
+       - `metrics.ts` — *stub#web vitals to endpoint TBI*
+       - `logging.ts` — *stub#structured logs TBI*
+     - `instrumentation.ts` — *stub#server tracing TBI*
+     - `instrumentation.client.ts` — *stub#client hooks TBI*
+     - `middleware.ts` — *stub#auth/CSP cookie guard*
+     - `next.config.mjs` — *stub#headers() emits CSP; images TBI*
+     - `.env.example` — *stub#vars incl. NEXT_PUBLIC_* *
+     - `Dockerfile` — *stub#multi-stage build*
+     - `docker-compose.yml` — *stub#local stack*
+     - `bin/entrypoint.sh` — *stub#boot checks*
+   *** Diagrams
+   #+BEGIN_SRC plantuml
+   @startuml
+   title "Component Map"
+   package "UI Shell" {
+     [layout.tsx]
+     [[...path]/page.tsx]
+     [error.tsx]
+     [loading.tsx]
+   }
+   package "BFF" {
+     [api/health]
+     [api/session]
+     [api/proxy/*]
+     [api/v1/*]
+   }
+   package "Security" {
+     [middleware.ts]
+     [csp.ts]
+     [cookies.ts]
+     [csrf.ts]
+   }
+   package "Observability" {
+     [instrumentation.ts]
+     [instrumentation.client.ts]
+     [analytics.tsx]
+   }
+   UI Shell ..> Security
+   UI Shell ..> Observability
+   UI Shell --> BFF
+   @enduml
+   #+END_SRC
+
+** [ ] It is remarked that Gaps & Opportunities align with the file’s open ends
+   It is recorded that several parts are deliberately TBI to match the file’s future-friendly posture.
+   - TBI List:
+     - Auth integration final choice and middleware rules.
+     - Redux/Thunk actual store wiring and first slice.
+     - Concrete CSP sources, nonce plumbing, and strict mode verification.
+     - BFF upstream allowlist, schemas, and tag-based revalidation policy.
+     - Web Vitals export destination and OTel exporter configuration.
+     - i18n enablement and domain/locale mapping (if in scope).
+   *** LPDM Knot — How to build the missing parts
+   It is recommended that the next iteration answers the Clarifying Questions, then fills each *stub#comment in dependency order: Security → BFF → Observability → State → UX shells. This ordering is said to minimize rework and matches the emphasis in the project file.
